@@ -41,6 +41,26 @@ When facts conflict, use this precedence:
 
 Never silently convert a recommendation or planned waiver claim into an executed transaction. The season files change only after ESPN state or the user confirms the action.
 
+## Privacy and Safe Use
+
+The included bookmarklets process information displayed in an authenticated ESPN fantasy session. Extracted or manually captured state may contain information that should not be published, including:
+
+- league, team, or member identifiers;
+- owner names and custom team names;
+- private league activity, messages, or matchup details;
+- account-linked URLs or query parameters;
+- information added to prompts, logs, screenshots, or weekly records.
+
+The repository does not require credentials, cookies, tokens, or raw authenticated page captures. **Never commit those materials.** Review every generated snapshot, screenshot, copied URL, and season record before committing it or sharing it publicly. Forks and adaptations should replace the example league and team data with their own deliberately reviewed data.
+
+The bookmarklets run locally in the user's browser. Users are responsible for reviewing the code, complying with applicable platform terms, and deciding what information is sent to an AI service or stored in source control.
+
 ## Scope
 
 This is an operational record, not a comprehensive fantasy database. Store information that improves future decisions or preserves what actually happened. Avoid copying transient news, speculative player notes, and entire conversation transcripts into source control.
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+ESPN, NFL, team names, player names, and related marks belong to their respective owners. This project is unaffiliated with and not endorsed by ESPN or the NFL.
