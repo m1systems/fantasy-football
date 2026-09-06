@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESPN Draft Assistant Bookmarklet</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { max-width: 760px; margin: 4rem auto; padding: 0 1.25rem; background: #111827; color: #e5e7eb; }
+    h1 { color: #fff; }
+    .bookmark { display: inline-block; margin: 1rem 0; padding: .8rem 1.15rem; border-radius: .6rem; background: #22c55e; color: #052e16; font-weight: 800; text-decoration: none; }
+    code { color: #86efac; }
+    li { margin: .55rem 0; }
+    .note { padding: 1rem; border-left: 4px solid #22c55e; background: #1f2937; }
+  </style>
+</head>
+<body>
+  <h1>ESPN Draft Assistant</h1>
+  <p>Drag this button to Chrome's bookmarks bar:</p>
+  <p><a id="bookmark" class="bookmark" href="#">Copy ESPN Draft State</a></p>
+  <ol>
+    <li>Open an ESPN desktop draft room and leave the <strong>Players</strong> tab selected.</li>
+    <li>Keep the available-player list near the top.</li>
+    <li>Click <strong>Copy ESPN Draft State</strong>.</li>
+    <li>Paste directly into the mock-draft ChatGPT conversation and send. No fence or cleanup is needed.</li>
+  </ol>
+  <p class="note">Version 0.3 extracts the live clock, next two snake picks, your roster, the 20 most recent selections, and up to 15 currently rendered available players.</p>
+
+  <script>
+    function espnDraftAssistant() {
+      const VERSION = '0.3';
+      const MAX_AVAILABLE = 15;
+      const MAX_RECENT = 20;
+      const q = (selector, root = document) => root.querySelector(selector);
+      const qa = (selector, root = document) => [...root.querySelectorAll(selector)];
+      const clean = value => (value || '').replace(/\s+/g, ' ').trim();
+      const md = value => clean(value).replace(/\|/g, '\\|');
+
+      function notify(message, failure = false) {
+        const old = document.getElementById('hal-espn-draft-notice');
+        if (old) old.remove();
+        const notice = document.createElement('div');
+        notice.id = 'hal-espn-draft-notice';
+        notice.textContent = message;
+        Object.assign(notice.style, {
+          position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: '2147483647', padding: '12px 18px', borderRadius: '8px',
+          background: failure ? '#b91c1c' : '#15803d', color: '#fff',
+          font: '700 14px system-ui, sans-serif', boxShadow: '0 4px 18px #0008'
+        });
+        document.body.appendChild(notice);
+        setTimeout(() => notice.remove(), failure ? 6000 : 2500);
+      }
+
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return;
+        } catch (_) {
+          const area = document.createElement('textarea');
+          area.value = text;
+          area.style.cssText = 'position:fixed;left:-9999px;top:0';
+          document.body.appendChild(area);
+          area.focus();
+          area.select();
+          const copied = document.execCommand('copy');
+          area.remove();
+          if (!copied) throw new Error('Clipboard access was denied.');
+        }
+      }
+
+      try {
+        if (!location.hostname.endsWith('espn.com') || !q('.draftContainer')) {
+          throw new Error('Open an ESPN desktop draft room before running this bookmarklet.');
+        }
+
+        const clock = q('[data-testid="clock"]');
+        const clockLabel = clean(q('.clock__label', clock)?.textContent);
+        const clockTime = clean(q('.clock__digits', clock)?.textContent);
+        const currentModule = q('[data-testid="current-pick"]');
+        const onClockTeam = clean(q('.team-name', currentModule)?.textContent);
+
+        const headers = qa('.draft-board-grid-header-cell');
+        const teamCount = headers.length || 10;
+        const myHeader = q('.draft-board-grid-header-cell.myTeam');
+        const myTeam = clean(myHeader?.textContent) || clean(q('.roster__dropdown select option:checked')?.textContent) || 'Unknown';
+        const mySlot = myHeader ? headers.indexOf(myHeader) + 1 : null;
+
+        const roundPickText = clean(q('.draft-board-grid-pick-cell.onTheClockPick .roundPick')?.textContent);
+        const roundPickMatch = roundPickText.match(/(\d+)\.(\d+)/);
+        let round = roundPickMatch ? Number(roundPickMatch[1]) : null;
+        let pickInRound = roundPickMatch ? Number(roundPickMatch[2]) : null;
+        let overallPick = round && pickInRound ? ((round - 1) * teamCount) + pickInRound : null;
+
+        if (!round) {
+          const roundMatch = clockLabel.match(/RND\s+(\d+)/i);
+          if (roundMatch) round = Number(roundMatch[1]);
+        }
+
+        let nextMyPick = null;
+        let followingMyPick = null;
+        if (mySlot && overallPick) {
+          const myPicks = [];
+          for (let r = round || 1; r <= 16; r++) {
+            const mine = (r - 1) * teamCount + (r % 2 ? mySlot : teamCount - mySlot + 1);
+            if (mine >= overallPick) myPicks.push(mine);
+          }
+          nextMyPick = myPicks[0] ?? null;
+          followingMyPick = myPicks.find(pick => pick > nextMyPick) ?? null;
+        }
+        const picksUntilMine = nextMyPick && overallPick ? nextMyPick - overallPick : null;
+        const interveningBeforeFollowing = followingMyPick && nextMyPick ? Math.max(0, followingMyPick - nextMyPick - 1) : null;
+
+        const draftedPositions = new Map();
+        for (const pick of qa('.draft-board-grid-pick-cell.completedPick')) {
+          const name = clean(`${clean(q('.playerFirstName', pick)?.textContent)} ${clean(q('.playerLastName', pick)?.textContent)}`);
+          const pos = clean(q('.positionPill', pick)?.textContent);
+          if (name && pos) draftedPositions.set(name.toLowerCase(), pos);
+        }
+
+        const roster = qa('.roster-module tbody tr').map(row => {
+          const cells = qa('td', row);
+          const playerCell = q('.player-column', row);
+          const fullName = clean(playerCell?.getAttribute('title')) || clean(q('.player-link-container', row)?.textContent) || 'Empty';
+          const actualPos = clean(q('.positionPill', row)?.textContent)
+            || clean(q('.player-column__content', row)?.textContent.match(/\(([^)]+)\)/)?.[1])
+            || draftedPositions.get(fullName.toLowerCase());
+          return {
+            slot: clean(cells[0]?.textContent), player: fullName,
+            pos: actualPos || clean(cells[0]?.textContent), bye: clean(cells.at(-1)?.textContent)
+          };
+        }).filter(item => item.player && item.player !== 'Empty');
+
+        const recent = qa('li.pick-message__container').map(item => ({
+          player: clean(q('.playerinfo__playername', item)?.textContent),
+          nfl: clean(q('.playerinfo__playerteam', item)?.textContent),
+          pos: clean(q('.playerinfo__playerpos', item)?.textContent),
+          info: clean(q('.pick-info', item)?.textContent)
+        })).filter(item => item.player).slice(-MAX_RECENT);
+
+        const available = [];
+        for (const row of qa('.draft-players [role="row"]')) {
+          const nameNode = q('.playerinfo__playername', row);
+          if (!nameNode) continue;
+          const cells = qa('[role="gridcell"]', row);
+          const nameLink = q('.playerinfo__playername a[title]', row);
+          const values = cells.map(cell => clean(q('.public_fixedDataTableCell_cellContent', cell)?.textContent || cell.textContent));
+          const item = {
+            rank: values[0] || '',
+            player: clean(nameLink?.getAttribute('title')) || clean(nameNode.textContent),
+            nfl: clean(q('.playerinfo__playerteam', row)?.textContent),
+            pos: clean(q('.playerinfo__playerpos', row)?.textContent),
+            bye: values[3] || '',
+            fpts: values[4] || '',
+          };
+          if (item.player && !available.some(existing => existing.player === item.player)) available.push(item);
+          if (available.length >= MAX_AVAILABLE) break;
+        }
+
+        const lines = [
+          '# ESPN Draft State', '',
+          `- My team: ${md(myTeam)}`,
+          `- My draft slot: ${mySlot ?? 'Unknown'} of ${teamCount}`,
+          `- Round/pick: ${roundPickText || clockLabel || 'Unknown'}`,
+          `- Overall pick: ${overallPick ?? 'Unknown'}`,
+          `- On the clock: ${md(onClockTeam || 'Unknown')}`,
+          `- Clock: ${md(clockTime || 'Unknown')}`,
+          `- My next pick: ${nextMyPick ?? 'Unknown'}`,
+          `- Picks until mine: ${picksUntilMine ?? 'Unknown'}`,
+          `- My following pick: ${followingMyPick ?? 'Unknown'}`,
+          `- Intervening selections before following pick: ${interveningBeforeFollowing ?? 'Unknown'}`,
+          '', '## My Roster', '',
+          '| Slot | Player | Pos | Bye |', '|---|---|---|---:|',
+          ...roster.map(x => `| ${md(x.slot)} | ${md(x.player)} | ${md(x.pos)} | ${md(x.bye)} |`),
+          '', '## Recent Picks', '',
+          '| Pick | Player | Pos | NFL | Fantasy Team |', '|---|---|---|---|---|',
+          ...recent.map(x => {
+            const match = x.info.match(/^(R\d+,\s*P\d+)\s*-\s*(.*)$/i);
+            return `| ${md(match?.[1] || x.info)} | ${md(x.player)} | ${md(x.pos)} | ${md(x.nfl)} | ${md(match?.[2] || '')} |`;
+          }),
+          '', '## Best Available (currently rendered by ESPN)', '',
+          '| RK | Player | Pos | NFL | Bye | Proj |', '|---:|---|---|---|---:|---:|',
+          ...available.map(x => `| ${md(x.rank)} | ${md(x.player)} | ${md(x.pos)} | ${md(x.nfl)} | ${md(x.bye)} | ${md(x.fpts)} |`),
+          '', '## Request', '',
+          'Recommend my best next pick plus two ranked fallbacks. Be decisive and concise. Account for full-PPR value, my roster construction, positional scarcity, the recent run of picks, and the probability each candidate survives to my following pick.',
+          '', `<!-- ESPN Draft Assistant v${VERSION} -->`
+        ];
+
+        if (!available.length) lines.splice(lines.indexOf('## Best Available (currently rendered by ESPN)') + 2, 0,
+          '_No available-player rows were detected. Return to the Players tab, scroll its list to the top, and run the bookmarklet again._', '');
+
+        copyText(lines.join('\n'))
+          .then(() => notify(`Draft state copied: ${roster.length} rostered, ${recent.length} recent, ${available.length} available`))
+          .catch(error => notify(error.message, true));
+      } catch (error) {
+        notify(`ESPN Draft Assistant: ${error.message}`, true);
+      }
+    }
+
+    document.getElementById('bookmark').href = `javascript:(${espnDraftAssistant.toString()})()`;
+  </script>
+</body>
+</html>
