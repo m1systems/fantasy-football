@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESPN Free Agent Assistant Bookmarklet</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { max-width: 760px; margin: 4rem auto; padding: 0 1.25rem; background: #111827; color: #e5e7eb; }
+    h1 { color: #fff; }
+    .bookmark { display: inline-block; margin: 1rem 0; padding: .8rem 1.15rem; border-radius: .6rem; background: #22c55e; color: #052e16; font-weight: 800; text-decoration: none; }
+    li { margin: .55rem 0; }
+    .note { padding: 1rem; border-left: 4px solid #22c55e; background: #1f2937; }
+  </style>
+</head>
+<body>
+  <h1>ESPN Free Agent Assistant</h1>
+  <p>Drag this button to Chrome's bookmarks bar:</p>
+  <p><a id="bookmark" class="bookmark" href="#">Copy ESPN Free Agents</a></p>
+  <ol>
+    <li>Open ESPN Fantasy Football and select <strong>Players → Add Players</strong>.</li>
+    <li>Apply the position, availability, and sort options you want ESPN to display.</li>
+    <li>Click <strong>Copy ESPN Free Agents</strong>.</li>
+    <li>Paste directly into the weekly ChatGPT conversation and send. No fence or cleanup is needed.</li>
+  </ol>
+  <p class="note">Version 1.2 identifies the fantasy league and displayed scoring week, then extracts every player row currently shown in ESPN’s free-agent table.</p>
+
+  <script>
+    function espnFreeAgentAssistant() {
+      const VERSION = '1.2';
+      const q = (selector, root = document) => root.querySelector(selector);
+      const qa = (selector, root = document) => [...root.querySelectorAll(selector)];
+      const clean = value => (value || '').replace(/\s+/g, ' ').trim();
+      const md = value => clean(String(value ?? '')).replace(/\|/g, '\\|');
+      const number = value => {
+        const text = String(value || '').replace(/[^\d.\-]/g, '');
+        if (!text || /^-+$/.test(text)) return null;
+        const parsed = Number(text);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+
+      function notify(message, failure = false) {
+        const old = document.getElementById('hal-espn-free-agent-notice');
+        if (old) old.remove();
+        const notice = document.createElement('div');
+        notice.id = 'hal-espn-free-agent-notice';
+        notice.textContent = message;
+        Object.assign(notice.style, {
+          position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: '2147483647', padding: '12px 18px', borderRadius: '8px',
+          background: failure ? '#b91c1c' : '#15803d', color: '#fff',
+          font: '700 14px system-ui, sans-serif', boxShadow: '0 4px 18px #0008'
+        });
+        document.body.appendChild(notice);
+        setTimeout(() => notice.remove(), failure ? 6000 : 2500);
+      }
+
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return;
+        } catch (_) {
+          const area = document.createElement('textarea');
+          area.value = text;
+          area.style.cssText = 'position:fixed;left:-9999px;top:0';
+          document.body.appendChild(area);
+          area.focus();
+          area.select();
+          const copied = document.execCommand('copy');
+          area.remove();
+          if (!copied) throw new Error('Clipboard access was denied.');
+        }
+      }
+
+      try {
+        if (!location.hostname.endsWith('espn.com')) {
+          throw new Error('Open ESPN Players → Add Players before running this bookmarklet.');
+        }
+
+        const documents = [document];
+        for (const frame of qa('iframe')) {
+          try {
+            if (frame.contentDocument) documents.push(frame.contentDocument);
+          } catch (_) {
+            /* Ignore cross-origin frames. */
+          }
+        }
+
+        let table = null;
+        let tableScore = -1;
+        for (const doc of documents) {
+          for (const candidate of qa('table, .Table', doc)) {
+            const header = q('thead .Table__sub-header', candidate) || q('thead tr:last-child', candidate);
+            const labels = qa('th', header).map(th => clean(th.textContent).toUpperCase());
+            const hasPlayer = labels.includes('PLAYER');
+            const hasRostered = labels.some(label => ['%ROST', '%ROSTERED', 'OWN'].includes(label));
+            const hasProjection = labels.includes('PROJ');
+            if (!hasPlayer || !hasRostered) continue;
+            const score = 10 + (hasProjection ? 2 : 0) + qa('tbody tr', candidate).length / 100;
+            if (score > tableScore) {
+              table = candidate;
+              tableScore = score;
+            }
+          }
+        }
+        if (!table) throw new Error('The ESPN free-agent table was not found. Open Players → Add Players.');
+
+        const doc = table.ownerDocument;
+        const leagueName = clean(doc.title.match(/^Add and Research Players\s+-\s+(.*?)\s+-\s+ESPN Fantasy Football$/i)?.[1])
+          || clean(q('.headers .subHeader', doc)?.textContent)
+          || 'Unknown';
+        const weekLabel = clean(q('thead th[title^="NFL Week"]', table)?.getAttribute('title'))
+          || clean(q('thead th[title^="NFL Week"]', table)?.textContent)
+          || clean(q('.custom--week.is-current .week-range', doc)?.textContent)
+          || 'Unknown';
+        const scoringWeek = weekLabel.match(/\bWeek\s+(\d+)\b/i)?.[1] || weekLabel;
+
+        const header = q('thead .Table__sub-header', table) || q('thead tr:last-child', table);
+        const columns = {};
+        qa('th', header).forEach((th, index) => {
+          const label = clean(th.textContent).toUpperCase();
+          if (label === 'PLAYER') columns.player = index;
+          else if (label === 'OPP') columns.opp = index;
+          else if (label === 'STATUS') columns.status = index;
+          else if (label === 'PROJ') columns.proj = index;
+          else if (label === 'SCORE') columns.score = index;
+          else if (['%ROST', '%ROSTERED', 'OWN'].includes(label)) columns.rostered = index;
+          else if (label === 'TYPE') columns.type = index;
+        });
+        if (!('player' in columns)) throw new Error('The free-agent Player column could not be identified.');
+
+        const players = [];
+        for (const row of qa('tbody tr', table)) {
+          const cells = qa('td', row);
+          const playerCell = cells[columns.player];
+          if (!playerCell || q('.player-column__empty', playerCell)) continue;
+
+          const player = clean(q('.player-column__athlete a', playerCell)?.textContent);
+          if (!player) continue;
+
+          let position = clean(q('.playerinfo__playerpos', playerCell)?.textContent).replace(/\s/g, '');
+          position = position.replace(/D\/ST|DST|D-?ST/i, 'D/ST');
+          players.push({
+            player,
+            flag: clean(q('.playerinfo__injurystatus', playerCell)?.textContent),
+            pos: position,
+            nfl: clean(q('.playerinfo__playerteam', playerCell)?.textContent),
+            opponent: clean(cells[columns.opp]?.innerText).replace(/\s/g, ''),
+            status: clean(cells[columns.status]?.innerText),
+            rostered: number(cells[columns.rostered]?.innerText),
+            projected: number(cells[columns.proj]?.innerText),
+            score: number(cells[columns.score]?.innerText),
+            type: clean(cells[columns.type]?.innerText) || 'FA',
+          });
+        }
+
+        if (!players.length) {
+          throw new Error('The free-agent table was found, but no players could be extracted. ESPN may have changed the page.');
+        }
+
+        const lines = [
+          '# ESPN Free Agents State', '',
+          `- League: ${md(leagueName)}`,
+          `- Scoring week: ${md(scoringWeek)}`,
+          `- Players shown: ${players.length}`,
+          '',
+          '| Player | Flag | Pos | NFL | Opp | Status | %Rost | Proj | Score | Type |',
+          '|---|---|---|---|---|---|---:|---:|---:|---|',
+          ...players.map(item => `| ${md(item.player)} | ${md(item.flag)} | ${md(item.pos)} | ${md(item.nfl)} | ${md(item.opponent)} | ${md(item.status)} | ${item.rostered ?? ''} | ${item.projected ?? ''} | ${item.score ?? ''} | ${md(item.type)} |`),
+          '', `<!-- ESPN Free Agent Assistant v${VERSION} -->`
+        ];
+
+        copyText(lines.join('\n'))
+          .then(() => notify(`Free agents copied: ${players.length} players`))
+          .catch(error => notify(error.message, true));
+      } catch (error) {
+        notify(`ESPN Free Agent Assistant: ${error.message}`, true);
+      }
+    }
+
+    document.getElementById('bookmark').href = `javascript:(${espnFreeAgentAssistant.toString()})()`;
+  </script>
+</body>
+</html>
