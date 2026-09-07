@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESPN Lineup Assistant Bookmarklet</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { max-width: 760px; margin: 4rem auto; padding: 0 1.25rem; background: #111827; color: #e5e7eb; }
+    h1 { color: #fff; }
+    .bookmark { display: inline-block; margin: 1rem 0; padding: .8rem 1.15rem; border-radius: .6rem; background: #22c55e; color: #052e16; font-weight: 800; text-decoration: none; }
+    li { margin: .55rem 0; }
+    .note { padding: 1rem; border-left: 4px solid #22c55e; background: #1f2937; }
+  </style>
+</head>
+<body>
+  <h1>ESPN Lineup Assistant</h1>
+  <p>Drag this button to Chrome's bookmarks bar:</p>
+  <p><a id="bookmark" class="bookmark" href="#">Copy ESPN Lineup State</a></p>
+  <ol>
+    <li>Open your ESPN fantasy team’s <strong>My Team</strong> page.</li>
+    <li>Confirm the lineup for the week you want to analyze is displayed.</li>
+    <li>Click <strong>Copy ESPN Lineup State</strong>.</li>
+    <li>Paste directly into the weekly ChatGPT conversation and send. No fence or cleanup is needed.</li>
+  </ol>
+  <p class="note">Version 1.1 identifies the fantasy team and displayed scoring week, then extracts every populated starter, bench, and IR row currently displayed by ESPN.</p>
+
+  <script>
+    function espnLineupAssistant() {
+      const VERSION = '1.1';
+      const q = (selector, root = document) => root.querySelector(selector);
+      const qa = (selector, root = document) => [...root.querySelectorAll(selector)];
+      const clean = value => (value || '').replace(/\s+/g, ' ').trim();
+      const md = value => clean(String(value ?? '')).replace(/\|/g, '\\|');
+      const number = value => {
+        const text = String(value || '').replace(/[^\d.\-]/g, '');
+        if (!text || /^-+$/.test(text)) return null;
+        const parsed = Number(text);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+
+      function notify(message, failure = false) {
+        const old = document.getElementById('hal-espn-lineup-notice');
+        if (old) old.remove();
+        const notice = document.createElement('div');
+        notice.id = 'hal-espn-lineup-notice';
+        notice.textContent = message;
+        Object.assign(notice.style, {
+          position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: '2147483647', padding: '12px 18px', borderRadius: '8px',
+          background: failure ? '#b91c1c' : '#15803d', color: '#fff',
+          font: '700 14px system-ui, sans-serif', boxShadow: '0 4px 18px #0008'
+        });
+        document.body.appendChild(notice);
+        setTimeout(() => notice.remove(), failure ? 6000 : 2500);
+      }
+
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return;
+        } catch (_) {
+          const area = document.createElement('textarea');
+          area.value = text;
+          area.style.cssText = 'position:fixed;left:-9999px;top:0';
+          document.body.appendChild(area);
+          area.focus();
+          area.select();
+          const copied = document.execCommand('copy');
+          area.remove();
+          if (!copied) throw new Error('Clipboard access was denied.');
+        }
+      }
+
+      try {
+        if (!location.hostname.endsWith('espn.com')) {
+          throw new Error('Open your ESPN fantasy My Team page before running this bookmarklet.');
+        }
+
+        const tables = qa('table.Table, .Table');
+        const table = tables.find(candidate => {
+          const headers = qa('thead th', candidate).map(th => clean(th.textContent).toUpperCase());
+          return headers.some(header => header.includes('SLOT')) && headers.includes('PLAYER');
+        });
+        if (!table) throw new Error('The ESPN lineup table was not found. Open your My Team page.');
+
+        const teamName = clean(q('.teamName[title]')?.getAttribute('title'))
+          || clean(q('.teamName')?.textContent)
+          || clean(document.title.match(/^(.*?)\s+Clubhouse\b/i)?.[1])
+          || 'Unknown';
+        const weekLabel = clean(q('thead th[title^="NFL Week"]', table)?.getAttribute('title'))
+          || clean(q('thead th[title^="NFL Week"]', table)?.textContent)
+          || clean(q('.custom--week.is-current .week-range')?.textContent)
+          || 'Unknown';
+        const scoringWeek = weekLabel.match(/\bWeek\s+(\d+)\b/i)?.[1] || weekLabel;
+
+        const header = q('thead .Table__sub-header', table);
+        const headings = qa('th', header);
+        const columns = {};
+        headings.forEach((th, index) => {
+          const label = clean(th.textContent).toUpperCase();
+          if (label.includes('SLOT')) columns.slot = index;
+          else if (label === 'PLAYER') columns.player = index;
+          else if (label === 'OPP') columns.opp = index;
+          else if (label === 'STATUS') columns.status = index;
+          else if (label === 'PROJ') columns.proj = index;
+          else if (label === 'SCORE') columns.score = index;
+        });
+
+        const fallbacks = { slot: 0, player: 1, opp: 3, status: 4, proj: 5, score: 6 };
+        for (const key of Object.keys(fallbacks)) {
+          if (!(key in columns)) columns[key] = fallbacks[key];
+        }
+
+        const sourceRows = qa('tbody tr.Table__TR', table)
+          .filter(row => qa('td', row).length > 5 && !q('.total-col', row));
+        const lineup = [];
+
+        for (const row of sourceRows) {
+          const cells = qa('td', row);
+          const playerCell = cells[columns.player];
+          if (!playerCell || q('.player-column__empty', playerCell)) continue;
+
+          const player = clean(q('.player-column__athlete a', playerCell)?.textContent);
+          if (!player) continue;
+
+          const slot = clean(cells[columns.slot]?.innerText);
+          const opponent = clean(cells[columns.opp]?.innerText).replace(/\s/g, '');
+          lineup.push({
+            slot,
+            player,
+            flag: clean(q('.playerinfo__injurystatus', playerCell)?.textContent),
+            nfl: clean(q('.playerinfo__playerteam', playerCell)?.textContent),
+            pos: clean(q('.playerinfo__playerpos', playerCell)?.textContent),
+            opponent,
+            status: clean(cells[columns.status]?.innerText),
+            projected: number(cells[columns.proj]?.innerText),
+            score: number(cells[columns.score]?.innerText),
+          });
+        }
+
+        if (!lineup.length) {
+          throw new Error('Lineup rows were found, but no players could be extracted. ESPN may have changed the page.');
+        }
+
+        const lines = [
+          '# ESPN Lineup State', '',
+          `- Team: ${md(teamName)}`,
+          `- Scoring week: ${md(scoringWeek)}`,
+          '',
+          '| Slot | Player | Flag | NFL | Pos | Opp | Status | Proj | Score |',
+          '|---|---|---|---|---|---|---|---:|---:|',
+          ...lineup.map(item => `| ${md(item.slot)} | ${md(item.player)} | ${md(item.flag)} | ${md(item.nfl)} | ${md(item.pos)} | ${md(item.opponent)} | ${md(item.status)} | ${item.projected ?? ''} | ${item.score ?? ''} |`),
+          '', `<!-- ESPN Lineup Assistant v${VERSION} -->`
+        ];
+
+        copyText(lines.join('\n'))
+          .then(() => notify(`Lineup copied: ${lineup.length} players`))
+          .catch(error => notify(error.message, true));
+      } catch (error) {
+        notify(`ESPN Lineup Assistant: ${error.message}`, true);
+      }
+    }
+
+    document.getElementById('bookmark').href = `javascript:(${espnLineupAssistant.toString()})()`;
+  </script>
+</body>
+</html>
