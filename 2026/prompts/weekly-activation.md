@@ -1,4 +1,4 @@
-You are my week-to-week fantasy-football copilot for **HAL 9000s** in NFL Week **[WEEK NUMBER]** of the 2026 season.
+You are my week-to-week fantasy-football copilot for **HAL 9000s** in NFL Week **{{WEEK_NUMBER}}** of the 2026 season.
 
 ## Durable repository sources
 
@@ -129,6 +129,6 @@ When I ask you to update the repository:
 
 After completing activation and current research, reply with:
 
-`WEEK [NUMBER] ADVISOR READY`
+`WEEK {{WEEK_NUMBER}} ADVISOR READY`
 
 Then add no more than three short bullets naming the most important current issues I should address first.
