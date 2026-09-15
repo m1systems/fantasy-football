@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESPN Waiver Claims Assistant Bookmarklet</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    body { max-width: 760px; margin: 4rem auto; padding: 0 1.25rem; background: #111827; color: #e5e7eb; }
+    h1 { color: #fff; }
+    .bookmark { display: inline-block; margin: 1rem 0; padding: .8rem 1.15rem; border-radius: .6rem; background: #22c55e; color: #052e16; font-weight: 800; text-decoration: none; }
+    li { margin: .55rem 0; }
+    .note { padding: 1rem; border-left: 4px solid #22c55e; background: #1f2937; }
+  </style>
+</head>
+<body>
+  <h1>ESPN Waiver Claims Assistant</h1>
+  <p>Drag this button to Chrome's bookmarks bar:</p>
+  <p><a id="bookmark" class="bookmark" href="#">Copy ESPN Waiver Claims</a></p>
+  <ol>
+    <li>Open your ESPN fantasy team page.</li>
+    <li>Open the <strong>Pending Moves</strong> modal so <strong>Pending Waiver Claims</strong> is visible.</li>
+    <li>Click <strong>Copy ESPN Waiver Claims</strong>.</li>
+    <li>Paste directly into the weekly ChatGPT conversation and send. No fence or cleanup is needed.</li>
+  </ol>
+  <p class="note">Version 1.0 extracts the ordered pending claims, including adds, conditional drops, destination slots, waiver priorities, processing dates, and bids.</p>
+
+  <script>
+    function espnWaiverClaimsAssistant() {
+      const VERSION = '1.0';
+      const q = (selector, root = document) => root.querySelector(selector);
+      const qa = (selector, root = document) => [...root.querySelectorAll(selector)];
+      const clean = value => (value || '').replace(/\s+/g, ' ').trim();
+      const md = value => clean(String(value ?? '')).replace(/\|/g, '\\|');
+
+      function notify(message, failure = false) {
+        const old = document.getElementById('hal-espn-waiver-claims-notice');
+        if (old) old.remove();
+        const notice = document.createElement('div');
+        notice.id = 'hal-espn-waiver-claims-notice';
+        notice.textContent = message;
+        Object.assign(notice.style, {
+          position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: '2147483647', padding: '12px 18px', borderRadius: '8px',
+          background: failure ? '#b91c1c' : '#15803d', color: '#fff',
+          font: '700 14px system-ui, sans-serif', boxShadow: '0 4px 18px #0008'
+        });
+        document.body.appendChild(notice);
+        setTimeout(() => notice.remove(), failure ? 6000 : 2500);
+      }
+
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return;
+        } catch (_) {
+          const area = document.createElement('textarea');
+          area.value = text;
+          area.style.cssText = 'position:fixed;left:-9999px;top:0';
+          document.body.appendChild(area);
+          area.focus();
+          area.select();
+          const copied = document.execCommand('copy');
+          area.remove();
+          if (!copied) throw new Error('Clipboard access was denied.');
+        }
+      }
+
+      try {
+        if (!location.hostname.endsWith('espn.com')) {
+          throw new Error('Open ESPN Fantasy Football before running this bookmarklet.');
+        }
+
+        const documents = [document];
+        for (const frame of qa('iframe')) {
+          try {
+            if (frame.contentDocument) documents.push(frame.contentDocument);
+          } catch (_) {
+            /* Ignore cross-origin frames. */
+          }
+        }
+
+        let table = null;
+        for (const doc of documents) {
+          const title = qa('.Table__Title', doc)
+            .find(node => /pending waiver claims/i.test(clean(node.textContent)));
+          table = q('table.Table', title?.closest('.ResponsiveTable'));
+          if (table) break;
+        }
+        if (!table) {
+          throw new Error('Open the Pending Moves modal so Pending Waiver Claims is visible.');
+        }
+
+        const doc = table.ownerDocument;
+        const titleParts = clean(doc.title).match(/^(.*?)\s+Clubhouse\s+-\s+(.*?)\s+-\s+ESPN Fantasy Football$/i);
+        const teamName = clean(q('.teamName[title]', doc)?.getAttribute('title'))
+          || clean(q('.teamName', doc)?.textContent)
+          || clean(titleParts?.[1])
+          || 'Unknown';
+        const leagueName = clean(titleParts?.[2]) || 'Unknown';
+
+        const claims = [];
+        for (const row of qa('tbody tr[data-transactionid]', table)) {
+          const cells = qa('td', row);
+          const details = cells[2];
+          const action = cells[3];
+          const addText = clean(q('.waiver-add', details)?.textContent);
+          const dropText = clean(q('.waiver-drop', details)?.textContent);
+          const addName = clean(q('.waiver-add b', details)?.textContent);
+          const dropName = clean(q('.waiver-drop b', details)?.textContent);
+
+          const addMatch = addText.match(/,\s*([A-Z]+)\s+(.+?)\s+from Waivers(?:\s+to\s+([A-Z/]+))?$/i);
+          const dropMatch = dropText.match(/,\s*([A-Z]+)\s+(.+?)\s+to Waivers$/i);
+          const priorityMatch = clean(action?.textContent).match(/Waiver\s+Priority\s*:\s*(\d+)/i);
+          const processDate = clean(q('.trade-proposal-date span span', details)?.textContent);
+
+          claims.push({
+            priority: priorityMatch?.[1] || '',
+            addName,
+            addTeam: addMatch?.[1]?.toUpperCase() || '',
+            addPos: clean(addMatch?.[2]).toUpperCase(),
+            addTo: addMatch?.[3]?.toUpperCase() || '',
+            dropName,
+            dropTeam: dropMatch?.[1]?.toUpperCase() || '',
+            dropPos: clean(dropMatch?.[2]).toUpperCase(),
+            processes: processDate,
+            bid: clean(row.getAttribute('data-bidamount')),
+          });
+        }
+
+        if (!claims.length) {
+          throw new Error('The Pending Waiver Claims table is visible, but it contains no claims.');
+        }
+
+        claims.sort((a, b) => (Number(a.priority) || Number.MAX_SAFE_INTEGER) - (Number(b.priority) || Number.MAX_SAFE_INTEGER));
+
+        const lines = [
+          '# ESPN Pending Waiver Claims', '',
+          `- Team: ${md(teamName)}`,
+          `- League: ${md(leagueName)}`,
+          `- Claims shown: ${claims.length}`,
+          '',
+          '| Priority | Add | NFL | Pos | To | Conditional Drop | NFL | Pos | Processes | Bid |',
+          '|---:|---|---|---|---|---|---|---|---|---:|',
+          ...claims.map(claim => `| ${md(claim.priority)} | ${md(claim.addName)} | ${md(claim.addTeam)} | ${md(claim.addPos)} | ${md(claim.addTo)} | ${md(claim.dropName)} | ${md(claim.dropTeam)} | ${md(claim.dropPos)} | ${md(claim.processes)} | ${md(claim.bid)} |`),
+          '', `<!-- ESPN Waiver Claims Assistant v${VERSION} -->`
+        ];
+
+        copyText(lines.join('\n'))
+          .then(() => notify(`Waiver claims copied: ${claims.length} claims`))
+          .catch(error => notify(error.message, true));
+      } catch (error) {
+        notify(`ESPN Waiver Claims Assistant: ${error.message}`, true);
+      }
+    }
+
+    document.getElementById('bookmark').href = `javascript:(${espnWaiverClaimsAssistant.toString()})()`;
+  </script>
+</body>
+</html>
