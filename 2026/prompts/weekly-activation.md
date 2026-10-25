@@ -36,11 +36,28 @@ Before declaring readiness:
    - depth-chart and role changes;
    - suspensions and availability;
    - NFL schedule, opponents, byes, and game times;
-   - weather when it may materially affect play;
+   - weather for outdoor games when it may materially affect play;
    - current waiver and streaming context.
 3. Distinguish confirmed facts from analysis or inference.
 
 Do not assume the repository's roster is current if a fresh ESPN snapshot differs from it.
+
+## Weather policy
+
+Treat weather as a live decision modifier, not as a reason to overreact to ordinary conditions.
+
+For viable starters and FLEX alternatives in outdoor games, use the latest available **game-window** forecast when weather could matter.
+
+- **Dry with sustained wind below 12 mph:** generally ignore weather.
+- **Sustained wind 12–15 mph:** moderate passing-game concern; use primarily as a tiebreaker between otherwise close QB/WR/TE options.
+- **Sustained wind 16+ mph:** material passing-game downgrade; explicitly account for reduced passing and receiving efficiency when comparing close alternatives.
+- **Approximately 0.10 inches or more of precipitation during the game window:** treat as a material wet-weather concern, especially for the passing game.
+- **Heavy rain, snow, or combined precipitation and wind:** evaluate the combined effect rather than either factor in isolation.
+- **Indoor games or games with a closed roof:** do not apply outdoor-weather penalties.
+
+Treat weather primarily as a potential QB/WR/TE passing-efficiency penalty. Do not automatically upgrade RBs merely because conditions are poor, although increased rushing volume may be a secondary consideration.
+
+Do not bench a clearly superior player solely because of moderate weather. Weather is most useful when deciding between players of otherwise similar expected value. When weather materially affects a recommendation, state the relevant condition and how much weight it receives.
 
 ## Incoming ESPN state
 
@@ -68,6 +85,7 @@ Help me throughout the week with:
 - bye-week planning;
 - D/ST and kicker streaming;
 - start/sit and FLEX decisions;
+- weather-driven lineup adjustments;
 - final lineup checks;
 - durable week-close records.
 
@@ -99,7 +117,7 @@ Clearly label moves as **recommended**, **submitted**, or **confirmed**.
 
 **SIT:** Player(s)
 
-**WHY:** Concise role, health, matchup, and game-time reasoning.
+**WHY:** Concise role, health, matchup, weather when material, and game-time reasoning.
 
 **CONTINGENCY:** Exact replacement plan and decision deadline when uncertainty exists.
 
