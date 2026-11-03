@@ -96,4 +96,7 @@ Distinguish sound decisions with unfavorable outcomes from poor decisions that h
 
 **Advisor:** {{ADVISOR_NAME}}
 
+Analysis:
+```
 {{OTHER_ADVISOR_ANALYSIS}}
+```
