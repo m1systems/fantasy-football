@@ -2,104 +2,98 @@
 
 ## Purpose
 
-Conduct a structured, independent critical review of another AI advisor's fantasy football recommendations.
+Critically evaluate another AI advisor's recommendations against your own recommendations already established earlier in this conversation.
 
-This workflow supports comparative analysis between ChatGPT and Claude, with the goal of improving decision quality while preserving analytical independence.
+This is a continuation of the existing weekly workflow, not a new analysis session. The scoring week, league configuration, ESPN snapshots, and your original recommendations have already been established.
 
-## Preconditions
+The objective is to improve decision quality through independent critical review without introducing unnecessary consensus or confirmation bias.
 
-Before beginning cross-review:
+## Existing Conversation Context
 
-1. Complete your own independent analysis using the current conversation's authoritative ESPN snapshots and available NFL information.
-2. Preserve your original recommendations before examining the other advisor's conclusions.
-3. Confirm that both analyses are based on equivalent league state. Flag material differences in snapshot timing or data.
-4. Do not retroactively revise your original recommendation.
+Before reviewing the other advisor's analysis:
 
-If no independent recommendation exists in the conversation, identify the missing prerequisite rather than presenting a comparison as independent.
+1. Locate your original recommendations from earlier in this conversation.
+2. Treat those recommendations as your established baseline.
+3. Preserve the original position exactly as stated, including relevant assumptions and uncertainties.
+4. Use the ESPN snapshots and league context already established in this conversation.
+5. Do not repeat the initial analysis or request information already supplied.
 
-## Review Procedure
+If the original recommendations cannot be identified, explicitly state that limitation rather than reconstructing them as though they were your original position.
+
+## Cross-Review Procedure
 
 ### 1. Identify Agreement and Disagreement
 
-Compare the proposed lineup changes, waiver acquisitions, conditional drops, trades, or other decisions.
+Compare your existing recommendations with those supplied by the other advisor.
 
-Identify material differences in recommended actions, priorities, assumptions, and supporting evidence.
+Identify material differences in proposed actions, priorities, assumptions, and supporting evidence.
 
 ### 2. Evaluate Evidence
 
 Determine whether the other advisor identified relevant information you overlooked.
 
-Separate disagreements into:
+Classify meaningful disagreements as:
 
 - **Factual:** Injuries, player availability, NFL roles, schedules, or league rules.
 - **Predictive:** Expected performance, opportunity trends, matchup projections, or uncertainty.
 - **Strategic:** Roster construction, opportunity cost, risk tolerance, or short-term versus long-term value.
 
-Verify material factual disagreements against authoritative sources.
+Verify material new factual claims when appropriate.
 
 ### 3. Challenge Both Analyses
 
-Critically evaluate the other advisor's reasoning and your own.
+Evaluate the strengths and weaknesses of both recommendations.
 
-Do not automatically defer to the other model or manufacture disagreement for the sake of independence.
+Do not automatically defer to the other model or manufacture disagreement.
 
-Explicitly identify any new information that changes the strength of your original recommendation.
+Explicitly identify any new evidence or reasoning that strengthens or weakens your original position.
 
-### 4. Reassess Transactions
+### 4. Reassess Recommendations
 
-For waiver and free-agent decisions, evaluate complete add/drop pairs.
+Evaluate the implications of any material differences.
 
-Consider:
+For transactions, consider complete add/drop pairs, immediate and rest-of-season value, roster flexibility, and opportunity cost.
 
-- Immediate starting-lineup improvement.
-- Rest-of-season value.
-- Player opportunity and upside.
-- Injury and bye-week contingencies.
-- Opportunity cost of dropping an existing player.
-- Waiver priority and acquisition restrictions.
+Use the latest verified information available, distinguishing genuine new developments from differences in analytical interpretation.
 
-Do not assume an acquisition is possible unless supported by current ESPN state.
+### 5. Final Assessment
 
-### 5. Produce Final Assessment
+Present a concise comparison containing:
 
-Use the following structure:
-
-**Agreement:** Areas where both advisors concur.
+**Agreement:** Where both analyses concur.
 
 **Disagreement:** Material differences and their underlying causes.
 
-**New evidence:** Important information introduced by the other advisor, with verification status.
+**New insights:** Important evidence or reasoning introduced by the other advisor.
 
-**Original recommendation:** Your position before cross-review.
+**Original recommendation:** Your previously established position, unchanged.
 
-**Final recommendation:** Maintain or revise your position, with a concise explanation.
+**Final recommendation:** Maintain or revise your position, explaining why.
 
-**Confidence:** High, Medium, or Low, with the principal uncertainty.
+**Confidence:** High, Medium, or Low, with the primary remaining uncertainty.
 
 ## Operating Rules
 
-- Preserve the original recommendation for historical comparison.
-- Do not confuse model consensus with independent evidence.
-- Do not repeatedly exchange revised analyses merely to achieve agreement.
-- Prefer one independent analysis followed by one cross-review.
-- Escalate unresolved factual disagreements for targeted verification.
+- This workflow begins after independent recommendations have already been made.
+- Do not regenerate the original analysis.
+- Preserve the distinction between original and revised recommendations.
+- Do not confuse agreement between models with independent factual confirmation.
+- Prefer one cross-review round rather than repeated exchanges.
+- Verify unresolved factual disagreements through targeted research.
+- Do not request previously supplied ESPN state unless it is materially outdated.
 - The user retains final decision-making authority.
-- Do not perform ESPN transactions or modify repository records without authorization.
+- Do not execute transactions or modify repository records without authorization.
 
 ## Season Evaluation
 
-Where decisions and outcomes are recorded, support retrospective evaluation of both independent recommendations and the cross-review process.
+When historical decisions and outcomes are available, evaluate whether cross-review improved decision quality.
 
-Distinguish decision quality from realized fantasy scoring.
-
-Evaluate whether cross-review uncovered meaningful information, corrected errors, or improved the resulting decision.
+Distinguish sound decisions with unfavorable outcomes from poor decisions that happened to succeed.
 
 ---
 
-## Review Input
+## Other Advisor's Analysis
 
-**Other advisor:** {{ADVISOR_NAME}}
-
-**Other advisor's original analysis:**
+**Advisor:** {{ADVISOR_NAME}}
 
 {{OTHER_ADVISOR_ANALYSIS}}
